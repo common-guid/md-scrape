@@ -189,7 +189,7 @@ def scrape_single(url: str, output_dir: str, root_dir: str):
         finally:
             browser.close()
 
-def scrape_crawl(start_url: str, output_dir: str, root_dir: str):
+def scrape_crawl(start_url: str, output_dir: str, root_dir: str, scope: str = None):
     """Crawl starting from start_url."""
 
     # Determine Scope (Hostname of start_url)
@@ -198,6 +198,8 @@ def scrape_crawl(start_url: str, output_dir: str, root_dir: str):
 
     print(f"Starting Crawl: {start_url}")
     print(f"Scope Domain: {scope_domain}")
+    if scope:
+        print(f"Scope Path: {scope}")
     print(f"Root Dir for paths: {root_dir}")
 
     # Check for existing state
@@ -248,6 +250,10 @@ def scrape_crawl(start_url: str, output_dir: str, root_dir: str):
                     # We use scope_domain to limit crawling to the same site
                     abs_parsed = urlparse(absolute)
                     if abs_parsed.netloc == scope_domain:
+                        # Check scope path if provided
+                        if scope and scope not in absolute:
+                            continue
+
                         if absolute not in visited:
                             to_visit.add(absolute)
                         if absolute not in url_to_local:
@@ -284,6 +290,7 @@ def main():
     parser = argparse.ArgumentParser(description="Markdown Scraper")
     parser.add_argument("-u", "--url", required=True, help="The URL to scrape (or start scraping from)")
     parser.add_argument("-o", "--output", required=True, help="The output directory")
+    parser.add_argument("-s", "--scope", help="Limit crawl to URLs containing this substring path")
     parser.add_argument("-m", "--mode", choices=["crawl", "single"], default="crawl", help="Scraping mode: 'crawl' (default) or 'single'")
     parser.add_argument("--root-dir", help="The root directory for calculating file structure (defaults to hostname of URL)")
 
@@ -293,6 +300,7 @@ def main():
     output_dir = args.output
     mode = args.mode
     root_dir = args.root_dir
+    scope = args.scope
 
     if not root_dir:
         # Default to hostname
@@ -302,7 +310,7 @@ def main():
     if mode == "single":
         scrape_single(url, output_dir, root_dir)
     else:
-        scrape_crawl(url, output_dir, root_dir)
+        scrape_crawl(url, output_dir, root_dir, scope=scope)
 
     # Note: Utility script integration is disabled for CLI mode per requirements.
 
