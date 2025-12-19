@@ -167,7 +167,7 @@ def scrape_single(url: str, output_dir: str, root_dir: str):
         page = browser.new_page()
         try:
             page.goto(url)
-            page.wait_for_selector("main", timeout=10000)
+            page.wait_for_load_state("domcontentloaded")
             html = page.content()
 
             soup = BeautifulSoup(html, "html.parser")
@@ -227,7 +227,7 @@ def scrape_crawl(start_url: str, output_dir: str, root_dir: str):
 
                 try:
                     page.goto(url)
-                    page.wait_for_selector("main", timeout=10000)
+                    page.wait_for_load_state("domcontentloaded")
                     html = page.content()
                 except Exception as e:
                     print(f"Error loading {url}: {e}")
