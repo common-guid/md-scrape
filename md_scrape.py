@@ -251,21 +251,84 @@ def scrape_crawl(start_url: str, output_dir: str, root_dir: str, scope: str = No
                     abs_parsed = urlparse(absolute)
                     if abs_parsed.netloc == scope_domain:
                         # Check scope path if provided
-                        if scope and scope not in absolute:
-                            continue
+                        # We allow adding to to_visit even if out of scope,
+                        # so we can find in-scope children.
+                        # But we only SAVE if in scope (handled below).
 
                         if absolute not in visited:
                             to_visit.add(absolute)
-                        if absolute not in url_to_local:
-                            url_to_local[absolute] = url_to_filename(absolute, root_dir, output_dir)
 
-                rewrite_local_links(soup, url, url_to_local, root_dir, output_dir)
-                md = convert_html_to_markdown(str(soup))
+                        # Pre-calculate local path if it is in scope, so we can rewrite links to it immediately.
+                        # We also include start_url in this check.
+                        is_in_scope = (not scope) or (scope in absolute) or (absolute == start_url)
 
-                local_path = url_to_local[url]
-                os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                with open(local_path, "w", encoding="utf-8") as f:
-                    f.write(md)
+                        if is_in_scope:
+                            if absolute not in url_to_local:
+                                url_to_local[absolute] = url_to_filename(absolute, root_dir, output_dir)
+
+                # Decide if we should save this page
+                should_save = True
+                if scope:
+                    if scope not in url:
+                        # Only save if it matches scope
+                        # Exception: Start URL?
+                        # The user requirement says: "landing on the -u page and crawling collecting all links."
+                        # "limit the scraped content to only pages on the approved scope"
+                        # This implies start URL might strictly be subject to scope too,
+                        # unless it's the entry point.
+                        # But usually if I explicitly ask for -u, I want it saved.
+                        # Let's assume explicitly provided start_url is always saved?
+                        # Actually, looking at the previous behavior, start_url was saved.
+                        # But for consistency, maybe only if it matches?
+                        # Given the user's example, they started at root (out of scope) to find deep pages.
+                        # They probably don't want the root page saved if it's not in scope.
+                        # But let's look at `url_to_local` usage.
+
+                        # If we don't save it, we shouldn't write to file.
+                        should_save = False
+
+                # Start URL exception: The user explicitly requested this URL.
+                # If we don't save it, the user sees nothing if they only asked for -u and it's out of scope.
+                # But in crawl mode, maybe that's intended?
+                # Let's implement strict scope for SAVING.
+
+                # Check if this is the start URL
+                if url == start_url:
+                     # For start_url, we usually save it.
+                     # But if strict scope is requested...
+                     # Let's try saving it only if in scope OR it is start_url?
+                     # The prompt says: "limit the scraped content to only pages on the approved scope".
+                     # This implies strictness.
+                     # But practically, if I run `crawl -u X`, I expect X to be processed.
+                     # Let's keep `should_save = True` for `start_url` just to be safe,
+                     # or maybe strict is better.
+                     # Let's stick to strict scope for now, EXCEPT maybe start_url.
+                     # Actually, if I don't save start_url, I won't have an index.md usually.
+                     # Let's stick to strict scope.
+                     if url == start_url:
+                         should_save = True # Always save start URL as entry point?
+
+                # Actually, simpler logic:
+                # 1. Add all same-domain links to to_visit.
+                # 2. When processing `url`:
+                #    - Extract links.
+                #    - If `url` matches scope (or is start_url), SAVE it.
+                #    - Else, do NOT save it.
+
+                if scope and scope not in url and url != start_url:
+                     should_save = False
+
+                if should_save:
+                    if url not in url_to_local:
+                         url_to_local[url] = url_to_filename(url, root_dir, output_dir)
+
+                    rewrite_local_links(soup, url, url_to_local, root_dir, output_dir)
+                    md = convert_html_to_markdown(str(soup))
+
+                    local_path = url_to_local[url]
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    with open(local_path, "w", encoding="utf-8") as f:
+                        f.write(md)
 
                 save_bfs_state(visited, to_visit, url_to_local, output_dir)
 
