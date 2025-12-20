@@ -17,7 +17,8 @@ def test_scope_comprehensive(mock_playwright, tmp_path):
     # Setup Mock
     mock_p = mock_playwright.return_value.__enter__.return_value
     mock_browser = mock_p.chromium.launch.return_value
-    mock_page = mock_browser.new_page.return_value
+    mock_context = mock_browser.new_context.return_value
+    mock_page = mock_context.new_page.return_value
 
     current_url_container = {"url": ""}
 
