@@ -17,7 +17,8 @@ def test_scrape_single(mock_playwright, tmp_path):
     # Setup Mock
     mock_p = mock_playwright.return_value.__enter__.return_value
     mock_browser = mock_p.chromium.launch.return_value
-    mock_page = mock_browser.new_page.return_value
+    mock_context = mock_browser.new_context.return_value
+    mock_page = mock_context.new_page.return_value
 
     # Mock page content
     html_content = "<html><body><h1>Test Title</h1><p>Test Content</p></body></html>"
@@ -46,7 +47,8 @@ def test_scrape_crawl(mock_playwright, tmp_path):
     # Setup Mock
     mock_p = mock_playwright.return_value.__enter__.return_value
     mock_browser = mock_p.chromium.launch.return_value
-    mock_page = mock_browser.new_page.return_value
+    mock_context = mock_browser.new_context.return_value
+    mock_page = mock_context.new_page.return_value
 
     # Mock page content logic
     # First page links to second page

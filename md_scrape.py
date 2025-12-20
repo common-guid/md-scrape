@@ -164,13 +164,24 @@ def scrape_single(url: str, output_dir: str, root_dir: str):
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        page = context.new_page()
         try:
             page.goto(url)
             page.wait_for_load_state("domcontentloaded")
             html = page.content()
 
             soup = BeautifulSoup(html, "html.parser")
+
+            # Robustness check: if no links found, wait for networkidle
+            if not soup.find("a", href=True):
+                print("No links found, waiting for networkidle...")
+                try:
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                    html = page.content()
+                    soup = BeautifulSoup(html, "html.parser")
+                except Exception:
+                    pass
 
             # Rewrite links?
             # For single mode, we only have one file.
@@ -213,7 +224,8 @@ def scrape_crawl(start_url: str, output_dir: str, root_dir: str, scope: str = No
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        page = context.new_page()
 
         try:
             while to_visit:
@@ -238,8 +250,20 @@ def scrape_crawl(start_url: str, output_dir: str, root_dir: str, scope: str = No
 
                 soup = BeautifulSoup(html, "html.parser")
 
+                # Robustness: Check if we found links. If not, maybe content didn't load.
+                links_found = soup.find_all("a", href=True)
+                if not links_found:
+                    print(f"No links found on {url}. Waiting for networkidle...")
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=5000)
+                        html = page.content()
+                        soup = BeautifulSoup(html, "html.parser")
+                        links_found = soup.find_all("a", href=True)
+                    except Exception as e:
+                        print(f"Timeout waiting for networkidle: {e}")
+
                 # Extract new links
-                for a_tag in soup.find_all("a", href=True):
+                for a_tag in links_found:
                     href = a_tag["href"]
                     if not href or href.startswith("#"):
                         continue
